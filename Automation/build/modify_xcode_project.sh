@@ -13,7 +13,7 @@ PRIVACY_INFO_PATH="$PROJECT_DIR/UnityFramework/PrivacyInfo.xcprivacy"
 
 # Step 1: 使用 sed 在 .mm 文件中插入代码
 echo "Inserting code into source file using sed..."
-sed -i '' 's|@class DisplayConnection;"|&\
+sed -i '' 's|@class DisplayConnection;|&\
 \
 @protocol FIRMessagingDelegate;|' "$UNITY_HEADER_FILE_PATH"
 
@@ -61,7 +61,7 @@ sed -i '' 's|id sourceApplication = options[UIApplicationOpenURLOptionsSourceApp
 \
     &|' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's|::printf("-> applicationDidFinishLaunching()\n");|&\
+sed -i '' 's#::printf("-> applicationDidFinishLaunching()\n");#&\
 \
     // Initialize FB\
     [FBSDKProfile enableUpdatesOnAccessTokenChange:YES];\
@@ -104,9 +104,9 @@ sed -i '' 's|::printf("-> applicationDidFinishLaunching()\n");|&\
     [[AppsFlyerLib shared] start];\
 //    [AppsFlyerLib shared].isDebug = true;\
 \
-|' "$UNITY_IMPLEMENTATION_FILE_PATH"
+#' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's|- (void)initUnityWithApplication:(UIApplication*)application|\
+sed -i '' 's#- (void)initUnityWithApplication:(UIApplication*)application#\
 // Receive displayed notifications for iOS 10 devices.\
 // Handle incoming notification messages while app is in the foreground.\
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center\
@@ -137,7 +137,7 @@ didReceiveNotificationResponse:(UNNotificationResponse *)response\
      @"FCMToken" object:nil userInfo:dataDict];\
 }\
 \
-&|' "$UNITY_IMPLEMENTATION_FILE_PATH"
+&#' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
 echo "Code insertion completed."
 
@@ -147,9 +147,9 @@ echo "Modifying Info.plist using PlistBuddy..."
 /usr/libexec/PlistBuddy -c "Add :NSUserTrackingUsageDescription string '為向顧客提供個人化的內容，需允許追蹤。未經同意，將不會用於其他目的，可在應用程式設定中隨時更改。'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :NSUserTrackingUsageDescription '為向顧客提供個人化的內容，需允許追蹤。未經同意，將不會用於其他目的，可在應用程式設定中隨時更改。'" "$INFO_PLIST_PATH"
 /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string '大航海時代：傳說'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName '大航海時代：傳說'" "$INFO_PLIST_PATH"
 /usr/libexec/PlistBuddy -c "Add :CFBundleName string '大航海時代：傳說'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleName '大航海時代：傳說'" "$INFO_PLIST_PATH"
-/usr/libexec/PlistBuddy -c "Delete :NSCameraUsageDescription" "$INFO_PLIST_PATH"
-/usr/libexec/PlistBuddy -c "Delete :NSLocationWhenInUseUsageDescription" "$INFO_PLIST_PATH"
-/usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" "$INFO_PLIST_PATH"
+/usr/libexec/PlistBuddy -c "Delete :NSCameraUsageDescription" "$INFO_PLIST_PATH" 2>/dev/null || echo "NSCameraUsageDescription does not exist in $INFO_PLIST_PATH."
+/usr/libexec/PlistBuddy -c "Delete :NSLocationWhenInUseUsageDescription" "$INFO_PLIST_PATH" 2>/dev/null || echo "NSLocationWhenInUseUsageDescription does not exist in $INFO_PLIST_PATH."
+/usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" "$INFO_PLIST_PATH" 2>/dev/null || echo "NSMicrophoneUsageDescription does not exist in $INFO_PLIST_PATH."
 
 /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes array" "$INFO_PLIST_PATH"
 /usr/libexec/PlistBuddy -c "Add :CFBundleURLTypes:0 dict" "$INFO_PLIST_PATH"
@@ -306,7 +306,7 @@ def main():
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeDeviceID",
             "NSPrivacyCollectedDataTypeLinked": True,
             "NSPrivacyCollectedDataTypeTracking": True,
-            "NSPrivacyCollectedDataTypePurposes"["NSPrivacyCollectedDataTypePurposeAnalytics","NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising"]
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAnalytics","NSPrivacyCollectedDataTypePurposeThirdPartyAdvertising"]
         },
         {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeProductInteraction",
@@ -386,6 +386,8 @@ echo "PrivacyInfo.xcprivacy 文件已成功更新。"
 
 # Step 4: 调用外部 Ruby 脚本，使用 xcodeproj 修改 project.pbxproj
 echo "Modifying Xcode project using xcodeproj..."
+# UTF-8 (with BOM) text 改为 ASCII text
+sed -i '' '1s/^\xEF\xBB\xBF//' Unity-iPhone.xcodeproj/project.pbxproj
 ruby <<'RUBY_SCRIPT'
 require 'xcodeproj'
 
@@ -395,8 +397,14 @@ target_unity_framework_name = 'UnityFramework'
 target_game_assembly_name = 'GameAssembly'
 bridging_header_name = 'Unity-iPhone-Bridging-Header.h'  # 桥接头文件名
 login_framework_path = './LoginFrameworkNew.framework'
+verify_code_framework_path = './VerifyCode.framework'
+google_service_info_path = './GoogleService-Info.plist'
 terafun_resource_folder_path = './TeraFun'
 sdk_resource_folder_path = './SDK_Resources'
+verify_code_resource_path = './NTESVerifyCodeResources.bundle'
+entitlements_file_path = './Unity-iPhone/Unity-iPhone.entitlements'
+old_images_path = 'Unity-iPhone/Images.xcassets'
+new_images_path = 'Images.xcassets'
 
 packages = [
   {
@@ -409,7 +417,7 @@ packages = [
     package_url: 'https://github.com/facebook/facebook-ios-sdk',
     package_version_kind: 'exactVersion',
     package_version: '13.0.0',
-    product_names: ['FacebookAEM','FacebookBasics','FacebookCore','FacebookLogin']
+    product_names: ['FacebookAEM','FacebookBasics','FacebookCore','FacebookLogin','FacebookShare']
   },
     {
     package_url: 'https://github.com/firebase/firebase-ios-sdk.git',
@@ -458,25 +466,60 @@ if target_unity_iphone.nil?
   abort("Target #{target_unity_iphone_name} not found in #{project_path}.")
 end
 
-# 修改 Build Settings
-target_unity_iphone.build_configurations.each do |config|
-  config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.cayenne.gvl'
-  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
-  config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
-  config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
-  config.build_settings['SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
+# 替换 应用icon
+if File.exist?(new_images_path)
+  # 删除旧的 Images.xcassets 并替换为新的
+  FileUtils.rm_rf(old_images_path) if File.exist?(old_images_path)
+  FileUtils.cp_r(new_images_path, 'Unity-iPhone/')
+  puts "Replaced 'Images.xcassets' successfully."
+else
+  puts "New 'Images.xcassets' not found at: #{new_images_path}"
 end
-puts 'Unity-iPhone modifications completed.'
 
-# 修改UnityFramework
-target_unity_framework = project.targets.find { |t| t.name == target_unity_framework_name }
+# 创建 Unity-iPhone.entitlements 文件
+# 确保文件夹存在，如果没有则创建
+FileUtils.mkdir_p('Unity-iPhone') unless File.exist?('Unity-iPhone')
 
-if target_unity_framework.nil?
-  abort("Target #{target_unity_framework_name} not found in #{project_path}.")
+# 创建并写入内容到 entitlements 文件
+File.open(entitlements_file_path, 'w') do |file|
+  file.puts '<?xml version="1.0" encoding="UTF-8"?>'
+  file.puts '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+  file.puts '<plist version="1.0">'
+  file.puts '<dict>'
+  file.puts '	<key>aps-environment</key>'
+  file.puts '	<string>distribution</string>'
+  file.puts '	<key>com.apple.developer.applesignin</key>'
+  file.puts '	<array>'
+  file.puts '		<string>Default</string>'
+  file.puts '	</array>'
+  file.puts '</dict>'
+  file.puts '</plist>'
+end
+
+puts "Unity-iPhone.entitlements file created at #{entitlements_file_path}"
+
+# 添加Unity-iPhone.entitlements
+entitlements_file_abs_path = File.expand_path(entitlements_file_path, File.dirname(project_path))
+entitlements_file_ref = project.new_file(entitlements_file_abs_path)
+puts "已成功添加Unity-iPhone.entitlements到目标: #{target_unity_iphone_name}"
+
+# 添加 StoreKit.framework
+store_kit_framework_ref = project.frameworks_group.new_file('/System/Library/Frameworks/StoreKit.framework')
+target_unity_iphone.frameworks_build_phase.add_file_reference(store_kit_framework_ref)
+puts "已成功添加框架: StoreKit.framework 到目标: #{target_unity_iphone_name}"
+
+# 添加VerifyCodeResource
+verify_code_resource_abs_path = File.expand_path(verify_code_resource_path, File.dirname(project_path))
+if File.exist?(verify_code_resource_abs_path)
+  verify_code_resource_ref = project.new_file(verify_code_resource_abs_path)
+  target_unity_iphone.resources_build_phase.add_file_reference(verify_code_resource_ref)
+  puts "已成功添加NTESVerifyCodeResources.bundle到目标: #{target_unity_iphone_name}"
+else
+  raise "NTESVerifyCodeResources.bundle 文件不存在: #{verify_code_resource_abs_path}"
 end
 
 # 创建 Bridging Header 文件
-bridging_header_path = "#{target_unity_framework_name}/#{bridging_header_name}"
+bridging_header_path = "#{bridging_header_name}"
 full_header_path = File.join(File.dirname(project_path), bridging_header_path)
   
 unless File.exist?(full_header_path)
@@ -494,51 +537,20 @@ end
 relative_header_path = bridging_header_path.gsub('./', '')
 
 # 修改 Build Settings
-target_unity_framework.build_configurations.each do |config|
+target_unity_iphone.build_configurations.each do |config|
+  config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+  config.build_settings['CODE_SIGN_IDENTITY[sdk=iphoneos*]'] = 'iPhone Distribution'
+  config.build_settings['DEVELOPMENT_TEAM[sdk=iphoneos*]'] = '8Y3X6Z8TBY'
+  config.build_settings['PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]'] = 'CayenneGVL-adhoc'
+  config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.cayenne.gvl'
   config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
+  config.build_settings['SWIFT_OBJC_BRIDGING_HEADER'] = relative_header_path
   config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
   config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
   config.build_settings['SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
-  config.build_settings['SWIFT_OBJC_BRIDGING_HEADER'] = relative_header_path
-  config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
-  config.build_settings['SWIFT_VERSION'] = '6.0'
-  config.build_settings['SWIFT_OPTIMIZATION_LEVEL'] = '-Onone'
-#  config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)']
-#  config.build_settings['OTHER_LDFLAGS'] << '-ObjC' unless config.build_settings['OTHER_LDFLAGS'].include?('-ObjC')
+  config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Unity-iPhone/Unity-iPhone.entitlements'
 end
-
-# 修改 Build Settings: IPHONEOS_DEPLOYMENT_TARGET 和 SUPPORTS_MACCATALYST
-#target.build_configurations.each do |config|
-#  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '12.0'  # 设置为你需要的版本
-#  config.build_settings['SUPPORTS_MACCATALYST'] = 'YES'         # 或 'NO' 根据需要
-#end
-
-# 添加 Framework 引用
-#framework_path = 'Vendor/MySDK.framework'
-#file_ref = project.main_group.new_file(framework_path)
-#target.frameworks_build_phase.add_file_reference(file_ref)
-
-# 添加 Framework
-login_framework_abs_path = File.expand_path(login_framework_path, File.dirname(project_path))
-login_framework_ref = project.new_file(login_framework_abs_path)
-target_unity_framework.add_file_references([login_framework_ref])
-target_unity_framework.frameworks_build_phase.add_file_reference(login_framework_ref)
-
-puts "已成功添加框架: #{login_framework_path} 到目标: #{target_unity_framework_name}"
-
-# 添加资源文件夹 TeraFun
-terafun_resource_folder_abs_path = File.expand_path(terafun_resource_folder_path, File.dirname(project_path))
-terafun_resource_group = project.main_group.find_subpath(File.join('TeraFun'), true)
-terafun_resource_group.set_path(terafun_resource_folder_abs_path)
-
-# 添加文件夹内所有文件到资源阶段
-Dir.glob("#{terafun_resource_folder_abs_path}/**/*").each do |file|
-    next if File.directory?(file)
-    file_ref = project.new_file(file)
-    target_unity_framework.resources_build_phase.add_file_reference(file_ref)
-end
-
-puts "已成功添加资源文件夹: #{terafun_resource_folder_abs_path} 到目标: #{target_unity_framework_name}"
+puts 'Unity-iPhone modifications completed.'
 
 # 添加资源文件夹 SDK_Resources
 sdk_resource_folder_abs_path = File.expand_path(sdk_resource_folder_path, File.dirname(project_path))
@@ -549,10 +561,92 @@ sdk_resource_group.set_path(sdk_resource_folder_abs_path)
 Dir.glob("#{sdk_resource_folder_abs_path}/**/*").each do |file|
     next if File.directory?(file)
     file_ref = project.new_file(file)
-    target_unity_framework.resources_build_phase.add_file_reference(file_ref)
+    target_unity_iphone.resources_build_phase.add_file_reference(file_ref)
 end
 
-puts "已成功添加资源文件夹: #{sdk_resource_folder_abs_path} 到目标: #{target_unity_framework_name}"
+puts "已成功添加资源文件夹: #{sdk_resource_folder_abs_path} 到目标: #{target_unity_iphone_name}"
+
+# 修改UnityFramework
+target_unity_framework = project.targets.find { |t| t.name == target_unity_framework_name }
+
+if target_unity_framework.nil?
+  abort("Target #{target_unity_framework_name} not found in #{project_path}.")
+end
+
+# 修改 Build Settings
+target_unity_framework.build_configurations.each do |config|
+  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
+  config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
+  config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
+  config.build_settings['SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
+  config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+  config.build_settings['SWIFT_VERSION'] = '5.0'
+  config.build_settings['FRAMEWORK_SEARCH_PATHS'] = ['$(inherited)','$(PROJECT_DIR)']
+#  config.build_settings['OTHER_LDFLAGS'] ||= ['$(inherited)']
+#  config.build_settings['OTHER_LDFLAGS'] << '-ObjC' unless config.build_settings['OTHER_LDFLAGS'].include?('-ObjC')
+end
+
+# 添加GoogleService-Info引用
+google_service_info_abs_path = File.expand_path(google_service_info_path, File.dirname(project_path))
+if File.exist?(google_service_info_abs_path)
+  google_service_info_ref = project.new_file(google_service_info_abs_path)
+  target_unity_framework.resources_build_phase.add_file_reference(google_service_info_ref)
+  puts "已成功添加GoogleService-Info.plist到目标: #{target_unity_framework_name}"
+else
+  raise "GoogleService-Info.plist 文件不存在: #{google_service_info_abs_path}"
+end
+
+# 添加 StoreKit.framework
+target_unity_framework.frameworks_build_phase.add_file_reference(store_kit_framework_ref)
+
+puts "已成功添加框架: StoreKit.framework 到目标: #{target_unity_framework_name}"
+
+# 添加 Login Framework
+login_framework_abs_path = File.expand_path(login_framework_path, File.dirname(project_path))
+login_framework_ref = project.new_file(login_framework_abs_path)
+target_unity_framework.frameworks_build_phase.add_file_reference(login_framework_ref)
+
+puts "已成功添加框架: #{login_framework_path} 到目标: #{target_unity_framework_name}"
+
+# 添加 VerifyCode Framework
+verify_code_framework_abs_path = File.expand_path(verify_code_framework_path, File.dirname(project_path))
+verify_code_framework_ref = project.new_file(verify_code_framework_abs_path)
+target_unity_framework.frameworks_build_phase.add_file_reference(verify_code_framework_ref)
+
+puts "已成功添加框架: #{verify_code_framework_path} 到目标: #{target_unity_framework_name}"
+
+# 添加资源文件夹 TeraFun
+terafun_resource_folder_abs_path = File.expand_path(terafun_resource_folder_path, File.dirname(project_path))
+terafun_resource_group = project.main_group.find_subpath(File.join('TeraFun'), true)
+terafun_resource_group.set_path(terafun_resource_folder_abs_path)
+
+# 遍历文件夹中的所有文件
+Dir.glob("#{terafun_resource_folder_abs_path}/**/*").each do |file|
+  # 跳过文件夹
+  next if File.directory?(file)
+
+  # 创建文件引用
+  file_ref = project.new_file(file)
+
+  # 根据文件扩展名分配到不同的 Build Phase
+  case File.extname(file)
+  when '.h'
+    # 添加到 Headers Build Phase
+    target_unity_framework.headers_build_phase.add_file_reference(file_ref)
+
+  when '.m', '.mm', '.swift', '.c', '.cpp'
+    # 添加到 Source Build Phase
+    target_unity_framework.source_build_phase.add_file_reference(file_ref)
+
+  else
+    # 添加到 Resources Build Phase
+    target_unity_framework.resources_build_phase.add_file_reference(file_ref)
+  end
+
+  puts "Added #{file} to the appropriate Build Phase"
+end
+
+puts "已成功添加资源文件夹: #{terafun_resource_folder_abs_path} 到目标: #{target_unity_framework_name}"
 
 # 添加 Swift Package 引用
 root_object = project.root_object
