@@ -4,7 +4,7 @@
 set -e
 
 # 设置路径
-PROJECT_DIR="./"
+export PROJECT_DIR="$(dirname "$(realpath "$0")")"
 XCODEPROJ_PATH="$PROJECT_DIR/Unity-iPhone.xcodeproj"
 INFO_PLIST_PATH="$PROJECT_DIR/Info.plist"
 UNITY_HEADER_FILE_PATH="$PROJECT_DIR/Classes/UnityAppController.h"
@@ -387,24 +387,26 @@ echo "PrivacyInfo.xcprivacy 文件已成功更新。"
 # Step 4: 调用外部 Ruby 脚本，使用 xcodeproj 修改 project.pbxproj
 echo "Modifying Xcode project using xcodeproj..."
 # UTF-8 (with BOM) text 改为 ASCII text
-sed -i '' '1s/^\xEF\xBB\xBF//' Unity-iPhone.xcodeproj/project.pbxproj
+sed -i '' '1s/^\xEF\xBB\xBF//' "$XCODEPROJ_PATH/project.pbxproj"
+
 ruby <<'RUBY_SCRIPT'
 require 'xcodeproj'
 
-project_path = './Unity-iPhone.xcodeproj'
+script_dir = ENV['PROJECT_DIR']
+project_path = File.join(script_dir, 'Unity-iPhone.xcodeproj')
 target_unity_iphone_name = 'Unity-iPhone'
 target_unity_framework_name = 'UnityFramework'
 target_game_assembly_name = 'GameAssembly'
 bridging_header_name = 'Unity-iPhone-Bridging-Header.h'  # 桥接头文件名
-login_framework_path = './LoginFrameworkNew.framework'
-verify_code_framework_path = './VerifyCode.framework'
-google_service_info_path = './GoogleService-Info.plist'
-terafun_resource_folder_path = './TeraFun'
-sdk_resource_folder_path = './SDK_Resources'
-verify_code_resource_path = './NTESVerifyCodeResources.bundle'
-entitlements_file_path = './Unity-iPhone/Unity-iPhone.entitlements'
-old_images_path = 'Unity-iPhone/Images.xcassets'
-new_images_path = 'Images.xcassets'
+login_framework_path = File.join(script_dir, 'LoginFrameworkNew.framework')
+verify_code_framework_path = File.join(script_dir, 'VerifyCode.framework')
+google_service_info_path = File.join(script_dir, 'GoogleService-Info.plist')
+terafun_resource_folder_path = File.join(script_dir, 'TeraFun')
+sdk_resource_folder_path = File.join(script_dir, 'SDK_Resources')
+verify_code_resource_path = File.join(script_dir, 'NTESVerifyCodeResources.bundle')
+entitlements_file_path = File.join(script_dir, 'Unity-iPhone/Unity-iPhone.entitlements')
+old_images_path = File.join(script_dir, 'Unity-iPhone/Images.xcassets')
+new_images_path = File.join(script_dir, 'Images.xcassets')
 
 packages = [
   {
@@ -470,17 +472,13 @@ end
 if File.exist?(new_images_path)
   # 删除旧的 Images.xcassets 并替换为新的
   FileUtils.rm_rf(old_images_path) if File.exist?(old_images_path)
-  FileUtils.cp_r(new_images_path, 'Unity-iPhone/')
+  FileUtils.cp_r(new_images_path, File.join(script_dir, 'Unity-iPhone/'))
   puts "Replaced 'Images.xcassets' successfully."
 else
   puts "New 'Images.xcassets' not found at: #{new_images_path}"
 end
 
 # 创建 Unity-iPhone.entitlements 文件
-# 确保文件夹存在，如果没有则创建
-FileUtils.mkdir_p('Unity-iPhone') unless File.exist?('Unity-iPhone')
-
-# 创建并写入内容到 entitlements 文件
 File.open(entitlements_file_path, 'w') do |file|
   file.puts '<?xml version="1.0" encoding="UTF-8"?>'
   file.puts '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
