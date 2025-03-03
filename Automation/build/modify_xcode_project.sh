@@ -46,9 +46,9 @@ sed -i '' 's|@implementation UnityAppController|@interface UnityAppController ()
 \
 &|' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's|- (BOOL)application:(UIApplication*)app openURL:(NSURL*)url options:(NSDictionary<NSString*, id>*)options|- (BOOL)application:(UIApplication*)app openURL:(NSURL*)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options|' "$UNITY_IMPLEMENTATION_FILE_PATH"
+sed -i '' 's|- (BOOL)application:(UIApplication\*)app openURL:(NSURL\*)url options:(NSDictionary<NSString\*, id>\*)options|- (BOOL)application:(UIApplication*)app openURL:(NSURL*)url options:(NSDictionary<UIApplicationOpenURLOptionsKey, id>*)options|' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's|id sourceApplication = options[UIApplicationOpenURLOptionsSourceApplicationKey], annotation = options[UIApplicationOpenURLOptionsAnnotationKey];|BOOL handled;\
+sed -i '' 's|id sourceApplication = options\[UIApplicationOpenURLOptionsSourceApplicationKey\], annotation = options\[UIApplicationOpenURLOptionsAnnotationKey\];|BOOL handled;\
 \
     handled = [GIDSignIn.sharedInstance handleURL:url];\
     if (handled) {\
@@ -61,7 +61,7 @@ sed -i '' 's|id sourceApplication = options[UIApplicationOpenURLOptionsSourceApp
 \
     &|' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's#::printf("-> applicationDidFinishLaunching()\n");#&\
+sed -i '' 's#::printf("-> applicationDidFinishLaunching()\\n");#&\
 \
     // Initialize FB\
     [FBSDKProfile enableUpdatesOnAccessTokenChange:YES];\
@@ -106,7 +106,7 @@ sed -i '' 's#::printf("-> applicationDidFinishLaunching()\n");#&\
 \
 #' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's#- (void)initUnityWithApplication:(UIApplication*)application#\
+sed -i '' 's#- (void)initUnityWithApplication:(UIApplication\*)application#\
 // Receive displayed notifications for iOS 10 devices.\
 // Handle incoming notification messages while app is in the foreground.\
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center\
