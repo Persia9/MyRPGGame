@@ -18,9 +18,29 @@ sed -i '' 's|#include <sys/sysctl.h>|&\
 #include <IOSBridge.h>\
 #include <ejoysdk/ejoysdk.h>|' "$UNITY_IMPLEMENTATION_FILE_PATH"
 
-sed -i '' 's|::printf("-> applicationDidFinishLaunching()\\n");|&\
-\
-    [[EjoySDKManager instance] application:application didFinishLaunchingWithOptions:launchOptions];|' "$UNITY_IMPLEMENTATION_FILE_PATH"
+awk '{
+  pattern = "\\[self initUnityWithApplication: application\\];"
+  if ($0 ~ pattern) {
+    count++
+    if (count == 1) {
+      print "    [[EjoySDKManager instance] checkToShowPrivacyProtocolAlertWithCompletion:^(EjoyPrivacyStatus status) {"
+      print "        if (EjoyPrivacyAgreed == status) {"
+      print "            [[EjoySDKManager instance] application:application didFinishLaunchingWithOptions:launchOptions];"
+      print "            [self initUnityWithApplication: application];"
+      print "        }"
+      print "    }];"
+      next
+    } else if (count == 2) {
+      print "        [[EjoySDKManager instance] checkToShowPrivacyProtocolAlertWithCompletion:^(EjoyPrivacyStatus status) {"
+      print "            if (EjoyPrivacyAgreed == status) {"
+      print "                [self initUnityWithApplication: application];"
+      print "            }"
+      print "        }];"
+      next
+    }
+  }
+  print
+}' "$UNITY_IMPLEMENTATION_FILE_PATH" > tmp.mm && mv tmp.mm "$UNITY_IMPLEMENTATION_FILE_PATH"
     
 sed -i '' 's|::printf("-> applicationWillResignActive()\\n");|&\
 \
@@ -76,10 +96,21 @@ echo "Code insertion completed."
 # Step 2: 使用 PlistBuddy 修改 Info.plist
 echo "Modifying Info.plist using PlistBuddy..."
 
-/usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string '大航海OL'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName '大航海OL'" "$INFO_PLIST_PATH"
+/usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string '大航海时代：传说'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName '大航海时代：传说'" "$INFO_PLIST_PATH"
 /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string '\$(MARKETING_VERSION)'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '\$(MARKETING_VERSION)'" "$INFO_PLIST_PATH"
 /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string '\$(CURRENT_PROJECT_VERSION)'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleVersion '\$(CURRENT_PROJECT_VERSION)'" "$INFO_PLIST_PATH"
+
+# 检查是否存在 CFBundleLocalizations，若存在则先删除
+if /usr/libexec/PlistBuddy -c "Print :CFBundleLocalizations" "$INFO_PLIST_PATH" >/dev/null 2>&1; then
+  /usr/libexec/PlistBuddy -c "Delete :CFBundleLocalizations" "$INFO_PLIST_PATH"
+fi
+
+/usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations array" "$INFO_PLIST_PATH"
+/usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:0 string en" "$INFO_PLIST_PATH"
+/usr/libexec/PlistBuddy -c "Add :CFBundleLocalizations:1 string zh_CN" "$INFO_PLIST_PATH"
+
 /usr/libexec/PlistBuddy -c "Add :UIStatusBarStyle string ''" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :UIStatusBarStyle ''" "$INFO_PLIST_PATH"
+/usr/libexec/PlistBuddy -c "Add :UIViewControllerBasedStatusBarAppearance bool false" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :UIViewControllerBasedStatusBarAppearance false" "$INFO_PLIST_PATH"
 
 /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string 'Please allow access to the albums used to share and scan for login.'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription 'Please allow access to the albums used to share and scan for login.'" "$INFO_PLIST_PATH"
 /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string '允许程序保存游戏内拍照生成的图片'" "$INFO_PLIST_PATH" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription '允许程序保存游戏内拍照生成的图片'" "$INFO_PLIST_PATH"
@@ -105,6 +136,25 @@ def main():
         {"NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryDiskSpace", "NSPrivacyAccessedAPITypeReasons": ["E174.1"]},
         {"NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryFileTimestamp", "NSPrivacyAccessedAPITypeReasons": ["0A2A.1", "C617.1"]},
         {"NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults", "NSPrivacyAccessedAPITypeReasons": ["CA92.1"]},
+    ]
+    
+    privacy_collected_data_types = [
+        {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeUserID",
+            "NSPrivacyCollectedDataTypeLinked": True,
+            "NSPrivacyCollectedDataTypeTracking": False,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+        },
+        {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
+            "NSPrivacyCollectedDataTypeLinked": True,
+            "NSPrivacyCollectedDataTypeTracking": False,
+            "NSPrivacyCollectedDataTypePurposes": ["NSPrivacyCollectedDataTypePurposeAppFunctionality"]
+        }
+    ]
+    
+    privacy_tracking_domains = [
+       "https://appsflyer.com"
     ]
     
     # 检查 PrivacyInfo.xcprivacy 是否存在
@@ -152,8 +202,28 @@ def main():
         for api_type, reasons in existing_types_dict.items()
     ]
     
-    data["NSPrivacyTracking"] = True
+    # 确保 NSPrivacyCollectedDataTypes 存在且为列表
+    if "NSPrivacyCollectedDataTypes" not in data or not isinstance(data["NSPrivacyCollectedDataTypes"], list):
+        data["NSPrivacyCollectedDataTypes"] = []
+        
+    existing_collected_data_types = data["NSPrivacyCollectedDataTypes"]
     
+    for entry in privacy_collected_data_types:
+        existing_collected_data_types.append(entry)
+        print(f"已添加新条目：{entry['NSPrivacyCollectedDataType']}")
+        
+    # 确保 NSPrivacyTrackingDomains 存在且为列表
+    if "NSPrivacyTrackingDomains" not in data or not isinstance(data["NSPrivacyTrackingDomains"], list):
+        data["NSPrivacyTrackingDomains"] = []
+    
+    existing_tracking_domains = data["NSPrivacyTrackingDomains"]
+    
+    for domain in privacy_tracking_domains:
+        existing_tracking_domains.append(domain)
+        print(f"已添加新条目：{domain}")
+    
+    data["NSPrivacyTracking"] = True
+        
     # 保存修改后的 plist 文件
     with open(privacy_info_path, 'wb') as f:
         plistlib.dump(data, f)
@@ -275,6 +345,13 @@ new_images_path = File.join(script_dir, 'Images.xcassets')
 
 project = Xcodeproj::Project.open(project_path)
 
+# 修改PBXProject
+pbx_project = project.root_object
+desired_regions = ['zh-Hans', 'Base']
+# 合并已有和新增的语言，去重
+pbx_project.known_regions = (pbx_project.known_regions + desired_regions).uniq
+puts "knownRegions 已更新为: #{pbx_project.known_regions}"
+
 # 修改GameAssembly
 puts 'Modifying GameAssembly...'
 target_game_assembly = project.targets.find { |t| t.name == target_game_assembly_name }
@@ -285,7 +362,7 @@ end
 
 # 修改 Build Settings
 target_game_assembly.build_configurations.each do |config|
-  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
+  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
   config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
   config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
   config.build_settings['SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
@@ -328,6 +405,11 @@ puts "Unity-iPhone.entitlements file created at #{entitlements_file_path}"
 entitlements_file_ref = project.new_file(entitlements_file_path)
 puts "已成功添加Unity-iPhone.entitlements到目标: #{target_unity_iphone_name}"
 
+# 添加 StoreKit.framework
+store_kit_framework_ref = project.frameworks_group.new_file('/System/Library/Frameworks/StoreKit.framework')
+target_unity_iphone.frameworks_build_phase.add_file_reference(store_kit_framework_ref)
+puts "已成功添加框架: StoreKit.framework 到目标: #{target_unity_iphone_name}"
+
 # 添加ejoysdk文件夹，特殊要求作为整体加入到resources_build_phase
 ejoy_resource_ref = project.new_file(ejoy_resource_folder_path)
 target_unity_iphone.resources_build_phase.add_file_reference(ejoy_resource_ref)
@@ -345,7 +427,7 @@ target_unity_iphone.build_configurations.each do |config|
   config.build_settings['DEVELOPMENT_TEAM[sdk=iphoneos*]'] = 'GXW45JP9KG'
   config.build_settings['PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]'] = 'uwm-hoc-0310'
   config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.lingxigames.uwm.cn.ios'
-  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
+  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
   config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
   config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
   config.build_settings['SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
@@ -388,7 +470,7 @@ puts "已成功添加框架: libresolv.tbd 到目标: #{target_unity_framework_n
 
 # 修改 Build Settings
 target_unity_framework.build_configurations.each do |config|
-  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.6'
+  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
   config.build_settings['SUPPORTS_MACCATALYST'] = 'NO'
   config.build_settings['SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
   config.build_settings['SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD'] = 'NO'
